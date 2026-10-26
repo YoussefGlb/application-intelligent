@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+/* Fichiers où Tailwind cherche les classes utilisées */
+@source "../../templates";
+@source "../dist/js";
+
+/* Mode sombre activé par la classe .dark sur <html> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------- Mise en forme du Markdown des réponses ---------- */
+.prose-chat { line-height: 1.7; overflow-wrap: anywhere; }
+.prose-chat > :first-child { margin-top: 0; }
+.prose-chat > :last-child { margin-bottom: 0; }
+.prose-chat p, .prose-chat ul, .prose-chat ol, .prose-chat blockquote, .prose-chat table { margin: .75em 0; }
+.prose-chat h1 { font-size: 1.4em; font-weight: 700; margin: 1em 0 .5em; }
+.prose-chat h2 { font-size: 1.2em; font-weight: 700; margin: 1em 0 .5em; }
+.prose-chat h3, .prose-chat h4 { font-size: 1.05em; font-weight: 600; margin: 1em 0 .4em; }
+.prose-chat ul { list-style: disc; padding-left: 1.4em; }
+.prose-chat ol { list-style: decimal; padding-left: 1.4em; }
+.prose-chat li { margin: .25em 0; }
+.prose-chat a { color: var(--color-indigo-600); text-decoration: underline; }
+.dark .prose-chat a { color: var(--color-indigo-400); }
+.prose-chat strong { font-weight: 600; }
+.prose-chat blockquote { border-left: 3px solid var(--color-indigo-300); padding-left: 1em; color: var(--color-slate-500); }
+.prose-chat hr { margin: 1.25em 0; border-color: var(--color-slate-200); }
+.dark .prose-chat hr { border-color: var(--color-slate-700); }
+.prose-chat table { width: 100%; border-collapse: collapse; font-size: .92em; display: block; overflow-x: auto; }
+.prose-chat th, .prose-chat td { border: 1px solid var(--color-slate-200); padding: .4em .7em; text-align: left; }
+.prose-chat th { background: var(--color-slate-100); font-weight: 600; }
+.dark .prose-chat th, .dark .prose-chat td { border-color: var(--color-slate-700); }
+.dark .prose-chat th { background: var(--color-slate-800); }
+.prose-chat :not(pre) > code {
+  background: var(--color-slate-100); color: var(--color-pink-600);
+  padding: .1em .35em; border-radius: .3em; font-size: .9em;
+}
+.dark .prose-chat :not(pre) > code { background: var(--color-slate-800); color: var(--color-pink-400); }
+.prose-chat pre { background: #282c34; color: #abb2bf; border-radius: .6em; padding: 1em; overflow-x: auto; font-size: .88em; margin: .75em 0; }
+.prose-chat pre code.hljs { padding: 0; background: transparent; }
+
+/* Bloc de code avec barre (langage + bouton copier) */
+.code-block { margin: .75em 0; border-radius: .6em; overflow: hidden; background: #282c34; }
+.code-block pre { margin: 0; border-radius: 0; }
+.code-head { display: flex; justify-content: space-between; align-items: center; padding: .35em .9em;
+  background: #21252b; color: #9da5b4; font-size: .75rem; font-family: ui-sans-serif, system-ui, sans-serif; }
+.code-head button { display: inline-flex; align-items: center; gap: .3em; cursor: pointer; }
+.code-head button:hover { color: white; }
+
+/* Diagrammes Mermaid */
+.mermaid-box { margin: .75em 0; padding: 1em; border-radius: .6em; overflow-x: auto;
+  background: white; border: 1px solid var(--color-slate-200); text-align: center; }
+.dark .mermaid-box { background: var(--color-slate-900); border-color: var(--color-slate-700); }
+
+/* Curseur clignotant pendant l'écriture */
+.streaming .prose-chat > :last-child::after {
+  content: "▋"; margin-left: 2px; color: var(--color-indigo-500); animation: blink 1s steps(2) infinite;
+}
+@keyframes blink { to { visibility: hidden; } }
+
+/* Points animés (l'IA réfléchit) */
+.typing-dot { width: .45rem; height: .45rem; border-radius: 9999px; background: currentColor; animation: bounce-dot 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay: .15s; }
+.typing-dot:nth-child(3) { animation-delay: .3s; }
+@keyframes bounce-dot { 0%, 80%, 100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-4px); } }
+
+/* Barre de défilement discrète */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: var(--color-slate-300) transparent; }
+.dark .thin-scroll { scrollbar-color: var(--color-slate-700) transparent; }
+
+/* Citations [1] du RAG */
+.cite {
+  display: inline-grid; place-items: center; min-width: 1.15rem; height: 1.15rem; padding: 0 .25rem; margin: 0 .1rem;
+  border-radius: .3rem; font-size: .68rem; font-weight: 700; line-height: 1; vertical-align: super; cursor: pointer;
+  background: var(--color-indigo-100); color: var(--color-indigo-700);
+}
+.cite:hover { background: var(--color-indigo-600); color: white; }
+.dark .cite { background: var(--color-indigo-950); color: var(--color-indigo-300); }
+.source summary { list-style: none; }
+.source summary::-webkit-details-marker { display: none; }

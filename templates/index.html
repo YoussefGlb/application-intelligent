@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FlaskGPT — Assistant IA</title>
+
+    <!-- Applique le thème avant l'affichage pour éviter un flash blanc -->
+    <script>
+        try {
+            const theme = localStorage.getItem("flaskgpt:theme");
+            if (theme === "dark" || (!theme && matchMedia("(prefers-color-scheme: dark)").matches)) {
+                document.documentElement.classList.add("dark");
+            }
+        } catch (e) {}
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dist/css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+
+    <script defer src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <script defer src="{{ url_for('static', filename='dist/js/script.js') }}"></script>
+</head>
+
+<body class="h-dvh overflow-hidden bg-white text-slate-800 antialiased dark:bg-slate-950 dark:text-slate-100">
+<div class="flex h-full">
+
+    <!-- ===================== Barre latérale ===================== -->
+    <div id="sidebar-overlay" class="fixed inset-0 z-30 hidden bg-slate-900/40 md:hidden"></div>
+
+    <aside id="sidebar"
+           class="fixed inset-y-0 left-0 z-40 flex w-72 -translate-x-full flex-col border-r border-slate-200 bg-slate-50 transition-transform duration-200 md:static md:translate-x-0 dark:border-slate-800 dark:bg-slate-900">
+        <div class="flex items-center justify-between px-4 pt-4 pb-3">
+            <div class="flex items-center gap-2">
+                <div class="grid size-8 place-items-center rounded-lg bg-indigo-600 text-sm font-bold text-white">F</div>
+                <span class="text-lg font-bold tracking-tight">FlaskGPT</span>
+            </div>
+            <button id="close-sidebar" class="rounded-lg p-1.5 text-slate-500 hover:bg-slate-200 md:hidden dark:hover:bg-slate-800" title="Fermer">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="space-y-2 px-3">
+            <button id="new-chat"
+                    class="flex w-full items-center gap-2 rounded-xl bg-indigo-600 px-3 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700">
+                <svg class="size-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Nouvelle conversation
+                <kbd class="ml-auto rounded bg-white/20 px-1.5 text-[10px] font-normal">Ctrl K</kbd>
+            </button>
+            <label class="relative block">
+                <span class="sr-only">Rechercher</span>
+                <svg class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                <input id="search" type="search" placeholder="Rechercher dans les conversations…"
+                       class="w-full rounded-xl border border-slate-200 bg-white py-2 pr-3 pl-9 text-sm outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:focus:ring-indigo-900">
+            </label>
+            <button id="open-docs"
+                    class="flex w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-800">
+                <span>📚</span> Mes documents (RAG)
+                <span id="docs-count" class="ml-auto rounded-full bg-slate-100 px-2 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300">0</span>
+            </button>
+        </div>
+
+        <nav class="thin-scroll mt-3 flex-1 overflow-y-auto px-2 pb-3">
+            <div id="pinned-section" class="hidden">
+                <h3 class="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">📌 Épinglées</h3>
+                <ul id="pinned-list" class="space-y-0.5"></ul>
+            </div>
+            <h3 id="recent-title" class="px-2 pt-3 pb-1 text-[11px] font-semibold tracking-wider text-slate-400 uppercase">Récentes</h3>
+            <ul id="chat-list" class="space-y-0.5"></ul>
+            <p id="chat-list-empty" class="hidden px-3 py-6 text-center text-sm text-slate-400">Aucune conversation pour l'instant.</p>
+        </nav>
+
+        <div class="flex items-center gap-1 border-t border-slate-200 p-3 dark:border-slate-800">
+            <button id="theme-toggle" class="flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-sm text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800">
+                <svg class="size-4 dark:hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+                <svg class="hidden size-4 dark:block" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                <span class="dark:hidden">Mode sombre</span><span class="hidden dark:inline">Mode clair</span>
+            </button>
+            <button id="open-settings-side" class="rounded-lg p-2 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800" title="Paramètres">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M10.3 4.3c.4-1.7 3-1.7 3.4 0a1.7 1.7 0 0 0 2.6 1.1c1.5-.9 3.3.8 2.4 2.4a1.7 1.7 0 0 0 1 2.5c1.8.4 1.8 3 0 3.4a1.7 1.7 0 0 0-1 2.6c.9 1.5-.9 3.3-2.4 2.4a1.7 1.7 0 0 0-2.6 1c-.4 1.8-3 1.8-3.4 0a1.7 1.7 0 0 0-2.6-1c-1.5.9-3.3-.9-2.4-2.4a1.7 1.7 0 0 0-1-2.6c-1.8-.4-1.8-3 0-3.4a1.7 1.7 0 0 0 1-2.5c-.9-1.6.9-3.3 2.4-2.4a1.7 1.7 0 0 0 2.6-1.1Z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ===================== Zone principale ===================== -->
+    <main class="flex min-w-0 flex-1 flex-col">
+
+        <!-- Barre du haut -->
+        <header class="flex items-center gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-800">
+            <button id="open-sidebar" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden dark:hover:bg-slate-800" title="Menu">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+            <h1 id="chat-title" class="min-w-0 flex-1 truncate font-semibold">Nouvelle conversation</h1>
+
+            <button id="model-badge" class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" title="Changer de modèle et de personnalité">
+                <span class="size-2 rounded-full bg-emerald-500"></span>
+                <span id="model-badge-text">gpt-oss-20b</span>
+            </button>
+            <a id="export-btn" href="#" class="pointer-events-none rounded-lg p-2 text-slate-500 opacity-40 hover:bg-slate-100 dark:hover:bg-slate-800" title="Exporter en Markdown">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            </a>
+        </header>
+
+        <!-- Compteur de tokens + barre de contexte -->
+        <div id="token-bar" class="hidden border-b border-slate-200 px-4 py-1.5 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+            <div class="mx-auto flex max-w-3xl items-center gap-3">
+                <span>🔢 <b id="total-tokens" class="font-semibold text-slate-700 dark:text-slate-200">0</b> tokens utilisés dans cette conversation</span>
+                <div class="ml-auto flex items-center gap-2" title="Remplissage de la fenêtre de contexte du modèle">
+                    <span>Contexte</span>
+                    <div class="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                        <div id="context-fill" class="h-full w-0 rounded-full bg-emerald-500 transition-all"></div>
+                    </div>
+                    <span id="context-text">0 %</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages -->
+        <div id="scroller" class="thin-scroll flex-1 overflow-y-auto">
+            <div class="mx-auto max-w-3xl px-4 py-6">
+
+                <!-- Écran d'accueil -->
+                <section id="welcome" class="flex flex-col items-center pt-2 text-center sm:pt-[8vh]">
+                    <div class="grid size-14 place-items-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white shadow-lg shadow-indigo-600/30">F</div>
+                    <h2 class="mt-5 text-2xl font-bold tracking-tight">Bonjour 👋 Comment puis-je t'aider ?</h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Pose une question, joins un fichier ou demande un schéma.</p>
+                    <div id="no-key-warning" class="mt-5 hidden max-w-md rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+                        ⚠️ Aucune clé trouvée. Ajoute <code class="font-mono">GROQ_API_KEY=...</code> dans le fichier <code class="font-mono">.env</code> puis relance le serveur.
+                    </div>
+                    <div class="mt-8 grid w-full gap-3 sm:grid-cols-2">
+                        <button class="example rounded-xl border border-slate-200 p-4 text-left text-sm hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-900"
+                                data-prompt="Explique-moi la descente de gradient simplement, avec un exemple.">
+                            <div class="font-medium">🧠 Explique un concept</div>
+                            <div class="mt-1 text-slate-500 dark:text-slate-400">La descente de gradient, simplement</div>
+                        </button>
+                        <button class="example rounded-xl border border-slate-200 p-4 text-left text-sm hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-900"
+                                data-prompt="Écris une fonction Python qui lit un fichier CSV avec pandas et affiche des statistiques de base.">
+                            <div class="font-medium">🐍 Écris du code</div>
+                            <div class="mt-1 text-slate-500 dark:text-slate-400">Lire un CSV et afficher des stats</div>
+                        </button>
+                        <button class="example rounded-xl border border-slate-200 p-4 text-left text-sm hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-900"
+                                data-prompt="Fais un schéma mermaid qui montre comment une requête passe du navigateur à Flask puis à l'API Groq et revient.">
+                            <div class="font-medium">📊 Dessine un schéma</div>
+                            <div class="mt-1 text-slate-500 dark:text-slate-400">Navigateur → Flask → Groq</div>
+                        </button>
+                        <button class="example rounded-xl border border-slate-200 p-4 text-left text-sm hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-800 dark:hover:border-indigo-700 dark:hover:bg-slate-900"
+                                data-prompt="Donne-moi 5 idées de projets de data science originaux pour un portfolio, avec les données à utiliser.">
+                            <div class="font-medium">💡 Trouve des idées</div>
+                            <div class="mt-1 text-slate-500 dark:text-slate-400">5 projets data science</div>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Conversation -->
+                <div id="gpt-output" class="space-y-6" aria-live="polite"></div>
+            </div>
+        </div>
+
+        <!-- Zone de saisie -->
+        <div class="border-t border-slate-200 bg-white px-4 pt-3 pb-4 dark:border-slate-800 dark:bg-slate-950">
+            <form id="prompt-form" class="mx-auto max-w-3xl">
+                <div id="drop-zone"
+                     class="rounded-2xl border border-slate-300 bg-white shadow-sm transition focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 dark:border-slate-700 dark:bg-slate-900 dark:focus-within:ring-indigo-950">
+                    <div id="file-chips" class="hidden flex-wrap gap-2 px-3 pt-3"></div>
+                    <label for="prompt" class="sr-only">Ton message</label>
+                    <textarea id="prompt" name="prompt" rows="1"
+                              placeholder="Pose ta question… (tu peux aussi glisser un fichier ici)"
+                              class="thin-scroll block max-h-52 w-full resize-none bg-transparent px-4 pt-3 pb-1 outline-none placeholder:text-slate-400"></textarea>
+                    <div class="flex items-center gap-1 px-2 pb-2">
+                        <input id="file-input" type="file" multiple class="hidden"
+                               accept=".txt,.md,.py,.js,.ts,.java,.c,.cpp,.h,.cs,.go,.rs,.php,.rb,.html,.css,.json,.csv,.sql,.xml,.yml,.yaml,.ipynb,.r,.sh,.log,.pdf">
+                        <button type="button" id="attach-btn" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" title="Joindre un fichier (texte, code, CSV, PDF)">
+                            <svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="m18.4 10.6-6.9 6.9a4.5 4.5 0 0 1-6.4-6.4l7.6-7.6a3 3 0 0 1 4.2 4.2l-7.6 7.6a1.5 1.5 0 0 1-2.1-2.1l6.9-6.9"/></svg>
+                        </button>
+                        <button type="button" id="rag-toggle" aria-pressed="false"
+                                class="flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 aria-pressed:border-indigo-300 aria-pressed:bg-indigo-50 aria-pressed:text-indigo-700 dark:border-slate-700 dark:hover:bg-slate-800 dark:aria-pressed:border-indigo-700 dark:aria-pressed:bg-indigo-950 dark:aria-pressed:text-indigo-300"
+                                title="Répondre à partir de mes documents (RAG)">
+                            📚 <span>Mes docs</span>
+                        </button>
+                        <span id="input-tokens" class="ml-1 text-xs text-slate-400"></span>
+                        <button type="submit" id="send-btn"
+                                class="ml-auto grid size-9 place-items-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40" title="Envoyer (Entrée)">
+                            <svg class="size-4" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><path d="M12 19V5m0 0-6 6m6-6 6 6"/></svg>
+                        </button>
+                        <button type="button" id="stop-btn"
+                                class="ml-auto hidden size-9 place-items-center rounded-xl bg-slate-800 text-white hover:bg-slate-700 dark:bg-slate-200 dark:text-slate-900" title="Arrêter (Échap)">
+                            <svg class="size-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <p class="mt-2 text-center text-[11px] text-slate-400">
+                    <kbd>Entrée</kbd> envoyer · <kbd>Maj+Entrée</kbd> nouvelle ligne · L'IA peut se tromper, vérifie les infos importantes.
+                </p>
+            </form>
+        </div>
+    </main>
+</div>
+
+<!-- ===================== Paramètres ===================== -->
+<dialog id="settings"
+        class="m-auto w-[min(32rem,calc(100%-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+    <form method="dialog" id="settings-form" class="space-y-5 p-6">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">Paramètres de la conversation</h2>
+            <button value="cancel" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Fermer">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <label class="block">
+            <span class="text-sm font-medium">Modèle</span>
+            <select id="model-select" class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"></select>
+            <span id="model-context" class="mt-1 block text-xs text-slate-500"></span>
+        </label>
+
+        <label class="block">
+            <span class="text-sm font-medium">Personnalité</span>
+            <select id="persona-select" class="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"></select>
+        </label>
+
+        <label class="block">
+            <span class="text-sm font-medium">Prompt système</span>
+            <textarea id="system-input" rows="4" placeholder="Ex. : Réponds toujours en 3 phrases maximum."
+                      class="thin-scroll mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800"></textarea>
+        </label>
+
+        <label class="block">
+            <span class="flex justify-between text-sm font-medium">
+                <span>Température</span><span id="temp-value" class="font-mono text-indigo-600 dark:text-indigo-400">0.7</span>
+            </span>
+            <input id="temp-input" type="range" min="0" max="2" step="0.1" value="0.7" class="mt-2 w-full accent-indigo-600">
+            <span class="flex justify-between text-xs text-slate-500"><span>Précis</span><span>Équilibré</span><span>Créatif</span></span>
+        </label>
+
+        <div class="flex justify-end gap-2 pt-1">
+            <button value="cancel" class="rounded-xl px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Annuler</button>
+            <button value="save" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">Enregistrer</button>
+        </div>
+    </form>
+</dialog>
+
+<!-- ===================== Base de connaissances (RAG) ===================== -->
+<dialog id="docs-dialog"
+        class="m-auto w-[min(44rem,calc(100%-2rem))] rounded-2xl border border-slate-200 bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-900/50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+    <div class="flex max-h-[85dvh] flex-col">
+        <div class="flex items-start justify-between gap-4 border-b border-slate-200 p-5 dark:border-slate-800">
+            <div>
+                <h2 class="text-lg font-semibold">📚 Mes documents</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    Ajoute tes cours. Quand <b>📚 Mes docs</b> est activé, FlaskGPT cherche les passages utiles
+                    et répond en citant ses sources.
+                </p>
+            </div>
+            <button id="close-docs" class="rounded-lg p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" title="Fermer">
+                <svg class="size-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 18 18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+
+        <div class="thin-scroll space-y-5 overflow-y-auto p-5">
+            <!-- Ajout -->
+            <div id="docs-drop"
+                 class="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-slate-300 px-4 py-6 text-center text-sm dark:border-slate-700">
+                <div class="text-2xl">📄</div>
+                <div>Glisse tes fichiers ici ou
+                    <button id="docs-browse" class="font-medium text-indigo-600 hover:underline dark:text-indigo-400">choisis-les</button>
+                </div>
+                <div class="text-xs text-slate-400">PDF, TXT, MD, code, CSV, notebooks — le texte est découpé en extraits et indexé</div>
+                <input id="docs-input" type="file" multiple class="hidden"
+                       accept=".pdf,.txt,.md,.py,.js,.ts,.java,.c,.cpp,.cs,.html,.css,.json,.csv,.sql,.xml,.yml,.yaml,.ipynb,.r,.tex">
+                <div id="docs-progress" class="hidden w-full max-w-sm">
+                    <div class="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+                        <div id="docs-progress-fill" class="h-full w-0 rounded-full bg-indigo-500 transition-all"></div>
+                    </div>
+                    <div id="docs-progress-text" class="mt-1 text-xs text-slate-500"></div>
+                </div>
+            </div>
+
+            <!-- Liste -->
+            <div>
+                <div class="mb-2 flex items-center justify-between text-xs text-slate-500">
+                    <span class="font-semibold tracking-wider uppercase">Documents indexés</span>
+                    <span id="docs-stats"></span>
+                </div>
+                <ul id="docs-list" class="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800"></ul>
+                <p id="docs-empty" class="rounded-xl border border-slate-200 px-4 py-6 text-center text-sm text-slate-400 dark:border-slate-800">Aucun document pour l'instant.</p>
+            </div>
+
+            <!-- Test de la recherche -->
+            <div>
+                <div class="mb-2 text-xs font-semibold tracking-wider text-slate-500 uppercase">🔎 Tester la recherche</div>
+                <form id="docs-search-form" class="flex gap-2">
+                    <input id="docs-search" type="search" placeholder="Ex. : comment éviter le surapprentissage ?"
+                           class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-400 dark:border-slate-700 dark:bg-slate-800">
+                    <button class="rounded-xl bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-200 dark:text-slate-900">Chercher</button>
+                </form>
+                <div id="docs-search-info" class="mt-2 text-xs text-slate-500"></div>
+                <ol id="docs-results" class="mt-2 space-y-2"></ol>
+            </div>
+        </div>
+    </div>
+</dialog>
+
+<!-- Notification -->
+<div id="toast" class="pointer-events-none fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-2 text-sm text-white opacity-0 shadow-lg transition-opacity dark:bg-slate-100 dark:text-slate-900"></div>
+
+<!-- ===================== Modèles HTML des messages ===================== -->
+<template id="user-template">
+    <div class="msg flex justify-end">
+        <div class="group flex max-w-[85%] flex-col items-end gap-1.5">
+            <div class="files flex flex-wrap justify-end gap-1.5"></div>
+            <div class="message rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 whitespace-pre-wrap text-white"></div>
+            <div class="flex gap-1 text-slate-400 opacity-0 transition group-hover:opacity-100">
+                <button class="copy-msg rounded p-1 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" title="Copier">
+                    <svg class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="assistant-template">
+    <div class="msg group flex gap-3">
+        <div class="grid size-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-xs font-bold text-white">AI</div>
+        <div class="min-w-0 flex-1 pt-1">
+            <div class="typing flex h-6 items-center gap-1 text-indigo-500">
+                <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
+                <span class="typing-label ml-2 text-xs text-slate-400"></span>
+            </div>
+            <div class="message prose-chat"></div>
+            <div class="sources mt-3 hidden"></div>
+            <div class="error-box hidden rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300"></div>
+            <div class="actions mt-2 flex flex-wrap items-center gap-1 text-xs text-slate-400">
+                <button class="copy-msg rounded p-1 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" title="Copier la réponse">
+                    <svg class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+                </button>
+                <button class="regen hidden rounded p-1 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800" title="Régénérer">
+                    <svg class="size-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M4 4v5h5M20 20v-5h-5"/><path d="M5.1 15a7 7 0 0 0 12.6 2M18.9 9A7 7 0 0 0 6.3 7"/></svg>
+                </button>
+                <span class="meta ml-1"></span>
+            </div>
+        </div>
+    </div>
+</template>
+
+</body>
+</html>
